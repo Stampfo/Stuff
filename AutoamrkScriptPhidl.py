@@ -15,6 +15,10 @@ from scipy.cluster.hierarchy import fcluster
 
 #GDSII
 
+#This Function asks for the layer of the marker. It then flattens the geometry and extracts all objects in this layer
+#I might want to change the order of these operations if runtime becomes long, since it flattens also the objects in layers that arent needed
+#It returns a 2xn array with [x1,y1],[x2,y2],....,[xn,yn] with all the corner points
+
 
 def getverticesGdsii(name,markerlayer=[]):
     
@@ -112,6 +116,9 @@ def findscon(paths):
 
 ## DXF FUNCTIONS
 
+#This Function asks for the layer of the marker, so far it only queries LWPOLYLINES and POLYLINES, it should be trivial to extend this
+# to Lines, I am not 100% sure if it is able to handle arrays. Also it has problems if the markers are not in the modelspace.
+#It returns a 2xn array with [x1,y1],[x2,y2],....,[xn,yn] with all the corner points
 
 def findallpointsdxf(doc,layers):
     
@@ -200,14 +207,24 @@ def finddxforGdsii(paths):
 #This is the corefunction, it groups corner points into clusters no larger than max_d in any direction
 #then does all parewise centers and picks the most frequent one,
 #rounds number to accurcay decimals points (usefull for inaccuracies, i guess rounding depends on units µm or nm)
+
+
 def findalllignmentmarks(points,max_d=250):   
-    accuracy=4
-    Z = linkage(points,method='complete',metric='euclidean')                           
+    accuracy=4          #This is the significant digits to which the center will be rounded
+    
+     #This creates a tree grouping points by mutual distance if runtime is critical euclidian metric isnt the best
+    #It can be visualized by using the Dendogram feature
     
     
-                     
+     
+    Z = linkage(points,method='complete',metric='euclidean') 
+    
+    # This cuts the tree at a defined maximumd distance, so it will group all objects together which are closer to each other
+    
     clusters = fcluster(Z, max_d, criterion='distance')
     
+    #This assigns points to clusters (the cluster function creates a list wiith the number to which each entry the correspoinding point
+    #belongs, the identifying number of the cluster is staarting at 1
     
     allclusters=[]
     for i in range(1,max(clusters)+1):
@@ -221,22 +238,29 @@ def findalllignmentmarks(points,max_d=250):
         
         
      
-    
+    #This function finds the center of each cluster and saves it in allignmentmarks
     
     alignmentmarks = []
-    for j in allclusters:
+    for j in allclusters:   #For each of the clusters
         centers=[]
-        for i in j:
-            for k in j:
-                x=(i[0]+k[0])/2
-                y=(i[1]+k[1])/2
+        for i in j:         #It iterates through every pair of points
+            for k in j:     #So the runtime of this is O(x^2)
+                x=(i[0]+k[0])/2         #For every pair it finds the average x
+                y=(i[1]+k[1])/2         #and y coordinates
                 
-                x=round(x,accuracy)
+                x=round(x,accuracy)     #rounds it to accuracy digits
                 y=round(y,accuracy)
                 
-                centers.append((x,y))
+                centers.append((x,y))   #and appends it to a list of all the centers it findss
         
-        alignmentmarks.append(most_frequent(centers))
+        #the most frequent center is the main center of symmetry of the structure
+        #It might be beneficial to either plot a histogram or find a lower bound of points.
+        #Say for example the most prominent point needs to be at least twice as common as all other points
+        #In the simplest case (a Square) there will be 4 center positions in the center and 2 center positions in the middle of the sides
+        #The algorithm takes every pair twice which is redundand but it is so fast anyway, also it is susceptible to not integer number
+        
+        alignmentmarks.append(most_frequent(centers)) 
+            
     
     return alignmentmarks
 
@@ -318,6 +342,11 @@ marks=findalllignmentmarks(points,max_d=600)
 writemarksintotxt(filename,marks,1) 
     
 
+#Experimental Userinput to select in the case of more than 4 marks
+#I want to to combine this with the quickplot of Phidl which plots very fast and reliably so not only alignment marks would be plotted but also
+# the underlying pattern. I did not find a way yet how to draw on top of quickplot and enable ginput yet though
+    
+    
 if True:
     
 
